@@ -14,8 +14,14 @@ import {
   Save,
   Sparkles,
   Trash2,
+  Eye,
+  RefreshCcw,
+  Beaker,
+  Lightbulb,
 } from "lucide-react";
 import { useI18n } from "@/components/i18n-provider";
+import { KnowledgeDetailsModal } from "./knowledge-details-modal";
+import { KnowledgeTestModal } from "./knowledge-test-modal";
 
 type BotRow = {
   id: string;
@@ -128,6 +134,9 @@ export function KnowledgeManager({ bots, categories, documents }: KnowledgeManag
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [detailsDocumentId, setDetailsDocumentId] = useState<string | null>(null);
+  const [detailsDocumentTitle, setDetailsDocumentTitle] = useState("");
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
 
   const sourceType = detectSourceType(selectedFile);
   const globalHealth = useMemo(() => getGlobalHealth(documents), [documents]);
@@ -143,6 +152,31 @@ export function KnowledgeManager({ bots, categories, documents }: KnowledgeManag
       .filter((item) => item.docs.length > 0)
       .sort((a, b) => b.score - a.score || b.docs.length - a.docs.length);
   }, [categories, documents]);
+
+  async function handleDelete(docId: string) {
+    if (!confirm(isAr ? "هل أنت متأكد من حذف هذا المصدر؟" : "Are you sure you want to delete this source?")) return;
+    try {
+      const res = await fetch(`/api/knowledge/${docId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      router.refresh();
+    } catch {
+      alert(isAr ? "تعذر الحذف" : "Failed to delete");
+    }
+  }
+
+  async function handleRewrite(docId: string) {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/knowledge/${docId}/rewrite`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      setSuccess(isAr ? "بدأت إعادة الصياغة بالذكاء الاصطناعي." : "AI rewrite started.");
+      router.refresh();
+    } catch {
+      setError(isAr ? "تعذر بدء إعادة الصياغة" : "Failed to start rewrite");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function submitKnowledge(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -201,8 +235,20 @@ export function KnowledgeManager({ bots, categories, documents }: KnowledgeManag
           </select>
         </article>
         <article className="panel p-4">
-          <p className="text-sm text-slate-500">{isAr ? "الصحة العامة" : "Global health"}</p>
-          <p className={`mt-2 inline-flex rounded-full px-3 py-1 text-2xl font-bold ring-1 ${healthTone(globalHealth)}`}>{globalHealth}%</p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-slate-500">{isAr ? "الصحة العامة" : "Global health"}</p>
+            <button type="button" onClick={() => setIsTestModalOpen(true)} className="btn-secondary py-1 text-xs px-2" disabled={!selectedBot}>
+              <Beaker size={14} /> {isAr ? "اختبار" : "Test"}
+            </button>
+          </div>
+          <div className="mt-2 flex items-center gap-3">
+            <span className={`inline-flex rounded-full px-3 py-1 text-2xl font-bold ring-1 ${healthTone(globalHealth)}`}>{globalHealth}%</span>
+            {globalHealth < 60 && (
+              <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded-md">
+                <Lightbulb size={12} /> {isAr ? "ننصح بإضافة ملفات أو إعادة صياغتها" : "Add/rewrite sources to improve"}
+              </span>
+            )}
+          </div>
         </article>
         <article className="panel p-4">
           <p className="text-sm text-slate-500">{isAr ? "المصادر الجاهزة / المشاكل" : "Ready / issues"}</p>
@@ -336,6 +382,7 @@ export function KnowledgeManager({ bots, categories, documents }: KnowledgeManag
                     <th className="p-3 text-right">Chunks</th>
                     <th className="p-3 text-right">Embeddings</th>
                     <th className="p-3 text-right">{isAr ? "آخر تحديث" : "Updated"}</th>
+                    <th className="p-3 text-right">{isAr ? "الإجراءات" : "Actions"}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -356,6 +403,17 @@ export function KnowledgeManager({ bots, categories, documents }: KnowledgeManag
                       <td className="p-3 text-slate-600">{doc.chunkCount}</td>
                       <td className="p-3 text-slate-600">{doc.embeddingCount}</td>
                       <td className="p-3 text-xs text-slate-500">{doc.updatedAt ? new Date(doc.updatedAt).toLocaleString(isAr ? "ar-EG" : "en-US") : "-"}</td>
+                      <td className="p-3 text-right space-x-2 rtl:space-x-reverse">
+                        <button type="button" onClick={() => { setDetailsDocumentId(doc.id); setDetailsDocumentTitle(doc.title); }} className="p-1 text-slate-400 hover:text-blue-600" title={isAr ? "التفاصيل" : "Details"}>
+                          <Eye size={16} />
+                        </button>
+                        <button type="button" onClick={() => handleRewrite(doc.id)} className="p-1 text-slate-400 hover:text-amber-600" title={isAr ? "إعادة الصياغة بالذكاء الاصطناعي" : "AI Rewrite"}>
+                          <RefreshCcw size={16} />
+                        </button>
+                        <button type="button" onClick={() => handleDelete(doc.id)} className="p-1 text-slate-400 hover:text-red-600" title={isAr ? "حذف" : "Delete"}>
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -366,6 +424,20 @@ export function KnowledgeManager({ bots, categories, documents }: KnowledgeManag
           )}
         </article>
       </section>
+
+      {detailsDocumentId && (
+        <KnowledgeDetailsModal
+          documentId={detailsDocumentId}
+          documentTitle={detailsDocumentTitle}
+          onClose={() => setDetailsDocumentId(null)}
+        />
+      )}
+      {isTestModalOpen && selectedBot && (
+        <KnowledgeTestModal
+          botId={selectedBot}
+          onClose={() => setIsTestModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

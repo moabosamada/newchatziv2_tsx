@@ -7,6 +7,7 @@ export type RealtimeEventType =
   | "notification.created"
   | "ticket.created"
   | "ticket.updated"
+  | "ticket.deleted"
   | "delivery.updated"
   | "inbox.snapshot"
   | "heartbeat"

@@ -31,7 +31,7 @@ export const summarizeConversationTool = createTool({
 
     const messages = await Message.find({ tenantId: input.tenantId, conversationId: input.conversationId })
       .sort({ createdAt: -1 })
-      .limit(input.limit)
+      .limit(Math.min(Math.max(Number(input.limit ?? 20), 1), 50))
       .select("sender content createdAt")
       .lean();
 

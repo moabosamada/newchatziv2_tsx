@@ -66,7 +66,10 @@ function buildSubject(input: {
 export function classifyTicketIntent(message: string): TicketIntentClassification {
   const normalized = message.toLowerCase().replace(/[إأآا]/g, "ا").replace(/[ىي]/g, "ي").replace(/ة/g, "ه");
 
-  if (/(موظف|بشري|انسان|خدمه\s*العملاء|الدعم\s*البشري|\bhuman\b|\bagent\b|representative|real person)/i.test(normalized)) {
+  if (
+    /(موظف|بشري|انسان|خدمه\s*العملاء|الدعم\s*البشري|\bhuman\b|\bagent\b|representative|real person)/i.test(normalized) ||
+    /(اكلم|كلم|اتكلم|التحدث|اتحدث|تحدث|تواصل|حولني|وصلني|اريد|ابغي|احتاج|ممكن|يمكنني).{0,40}(الدعم|الدعم\s*الفني|فريق\s*الدعم|موظف|مندوب|ممثل)/i.test(normalized)
+  ) {
     return {
       shouldCreate: true,
       category: "human_request",
@@ -75,7 +78,9 @@ export function classifyTicketIntent(message: string): TicketIntentClassificatio
     };
   }
 
-  // Booking and sales intents are now handled dynamically by the AI agent to avoid hardcoded regex.
+  // NOTE: Booking and sales intents are detected language-agnostically by the AI itself.
+  // The model appends [CREATE_TICKET: booking_request] or [CREATE_TICKET: sales_request]
+  // at the end of its reply when it detects these intents (see enableTicketMarkers in build-system-prompt.ts).
 
   if (/(شكوى|اشتكي|زعلان|غاضب|سيء|سىء|مش راضي|complaint|angry|bad service)/i.test(normalized)) {
     return {
@@ -120,13 +125,6 @@ export async function ensureTicketForConversation(input: EnsureTicketInput) {
     botId: input.botId,
   });
   if (!conversation) throw new Error("المحادثة غير موجودة.");
-
-  conversation.mode = "ai";
-  conversation.aiPaused = false;
-  conversation.aiPausedReason = undefined;
-  conversation.aiStatus = "active";
-  conversation.handoffReason = undefined;
-  await conversation.save();
 
   const issueFingerprint = buildTicketIssueFingerprint(input);
 

@@ -14,6 +14,7 @@ export async function buildSafeCustomerReply(input: {
   hasKnowledge?: boolean;
   customInstructions?: string;
   knowledgeSummary?: string;
+  contextSummary?: string;
 }) {
   try {
     const systemPrompt = buildUnifiedSystemPrompt({
@@ -22,6 +23,7 @@ export async function buildSafeCustomerReply(input: {
       language: input.language || "auto",
       customInstructions: input.customInstructions,
       knowledgeInstructions: input.knowledgeSummary,
+      contextSummary: input.contextSummary,
       tone: "professional, helpful, marketing-aware, concise",
       responseLength: "short",
     });

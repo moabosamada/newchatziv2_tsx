@@ -1,4 +1,5 @@
 import { routeAiRequest } from "@/lib/ai-router";
+import { buildUnifiedSystemPrompt } from "@/lib/ai/build-system-prompt";
 import { logger } from "@/lib/logger";
 
 export type FastIntentKind =
@@ -34,6 +35,7 @@ export type FastIntentResponderInput = {
   language?: string;
   fallbackMessage?: string;
   customInstructions?: string;
+  useEmojis?: boolean;
 };
 
 const HANDLED_INTENTS = new Set(["greeting", "thanks", "goodbye", "out_of_scope", "unclear", "identity"]);
@@ -91,13 +93,18 @@ export async function detectAndReplyFast(input: FastIntentResponderInput): Promi
   }
 
   const systemPrompt = [
-    "You are a low-latency multilingual CRM intent responder for Chatzi.",
-    "Your job is ONLY to classify lightweight customer messages and, when appropriate, generate a short natural customer-facing reply.",
+    buildUnifiedSystemPrompt({
+      businessName: input.businessName || input.botName,
+      botName: input.botName,
+      role: input.role,
+      tone: input.tone,
+      responseLength: input.responseLength,
+      language: input.language || "auto",
+      customInstructions: input.customInstructions,
+      useEmojis: input.useEmojis,
+    }),
+    "Fast responder mode: classify lightweight customer messages and generate a short customer-facing reply only when the message is safe to answer without business knowledge.",
     "Do not use detailed business knowledge here. Do not invent business facts. Do not mention internal systems.",
-    "Detect the customer's language from the message and reply in the same language unless a configured language is explicitly provided.",
-    "You represent the configured business/workspace, not a generic AI assistant.",
-    "For greetings: introduce yourself naturally as Chatzi/the configured bot assistant for the business/workspace name, then ask how you can help. Generate this in the customer's language. Do not use a fixed Arabic-only sentence.",
-    "For identity questions such as 'who are you' or 'من أنت': identify yourself using the configured bot name and business/workspace name in the customer's language. Do not use a generic identity.",
     "If the message is a business question, booking request, sales request, support request, complaint, price question, service/product question, or anything that needs knowledge, set intent to business and handled to false and do not write a customer reply.",
     "If the message is only a greeting, identity question, thanks, goodbye, clearly unrelated general-topic question, or too unclear to route, set handled to true and write one concise human reply.",
     "For out_of_scope, politely say you are specialized in this business and invite the customer to ask about services, booking, pricing, policies, or support. Do not answer the general question itself.",

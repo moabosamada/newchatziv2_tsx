@@ -21,6 +21,8 @@ export type ResolvedMastraModel = {
   source: "ai-model" | "ai-provider";
 };
 
+export const CHATZI_MASTRA_MODEL_CONTEXT_KEY = "chatzi.mastra.model";
+
 const DEFAULT_PROVIDER_MODELS: Record<string, string> = {
   openai: "gpt-4o-mini",
   anthropic: "claude-3-5-sonnet-20240620",
@@ -150,4 +152,3 @@ export async function resolveMastraModelForBot(input: {
     "لا يوجد مزود ذكاء اصطناعي مفعّل. أضف مفتاحاً من صفحة مفاتيح الذكاء الاصطناعي."
   );
 }
-

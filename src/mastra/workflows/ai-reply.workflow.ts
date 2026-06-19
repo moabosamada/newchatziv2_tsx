@@ -1,11 +1,12 @@
 import { createStep, createWorkflow } from "@mastra/core/workflows";
+import { RequestContext } from "@mastra/core/request-context";
 import { z } from "zod";
 import { Types } from "mongoose";
 import {
   aiReplyInputSchema,
   aiReplyOutputSchema,
 } from "@/mastra/schemas/ai-reply.schema";
-import { AiSetting, Bot, Conversation, Message } from "@/lib/models";
+import { AiSetting, Bot, Conversation, Message, Tenant } from "@/lib/models";
 import { connectToDatabase } from "@/lib/mongodb";
 import { DEFAULT_SYSTEM_PROMPT } from "@/lib/strings";
 import { buildUnifiedSystemPrompt } from "@/lib/ai/build-system-prompt";
@@ -16,7 +17,10 @@ import { assertCanSendAiMessage, recordAiMessageUsage } from "@/lib/billing";
 import { buildKnowledgePrompt, searchKnowledge } from "@/lib/knowledge";
 import { checkContentModeration } from "@/lib/moderation";
 import { getMastraMaxToolCalls } from "@/lib/ai/orchestrator-flags";
-import { resolveMastraModelForBot } from "@/lib/ai/mastra-model-resolver";
+import {
+  CHATZI_MASTRA_MODEL_CONTEXT_KEY,
+  resolveMastraModelForBot,
+} from "@/lib/ai/mastra-model-resolver";
 import { validateCustomerReply } from "@/lib/ai/reply-validators";
 import { logger } from "@/lib/logger";
 import { publishRealtimeEvent } from "@/lib/realtime";
@@ -32,6 +36,7 @@ import {
 } from "@/lib/tickets";
 import { isExplicitHumanHandoffRequest } from "@/lib/ai/handoff";
 import { detectAndReplyFast } from "@/lib/ai/fast-intent-responder";
+import { getSystemMessage } from "@/lib/i18n-server";
 
 const settingSchema = z
   .object({
@@ -156,7 +161,10 @@ const aiReplyRunContextSchema = aiReplyInputSchema.extend({
     })
     .optional(),
   ticketId: z.string().optional(),
+  ticketNumber: z.number().optional(),
   modelCalled: z.boolean().optional(),
+  tenantName: z.string().optional(),
+  needsLeadInfo: z.boolean().optional(),
 });
 
 type AiReplyRunContext = z.infer<typeof aiReplyRunContextSchema>;
@@ -194,30 +202,6 @@ function withTimeoutSignal() {
   };
 }
 
-function buildPersonaDirectives(setting: AiReplyRunContext["setting"]) {
-  const directives: string[] = [];
-
-  if (setting?.role && setting.role !== "assistant") {
-    directives.push(`Your role is: ${setting.role}. Always stay in character.`);
-  }
-  if (setting?.language && setting.language !== "auto") {
-    directives.push(`You must reply exclusively in this language: ${setting.language}.`);
-  }
-  if (setting?.tone && setting.tone !== "neutral") {
-    directives.push(`Maintain a ${setting.tone} tone throughout the conversation.`);
-  }
-  if (setting?.responseLength && setting.responseLength !== "medium") {
-    directives.push(`Keep your answers ${setting.responseLength}.`);
-  }
-  if (setting?.useEmojis === false) {
-    directives.push("Do NOT use any emojis in your responses.");
-  } else if (setting?.useEmojis === true) {
-    directives.push("Feel free to use relevant emojis in your responses.");
-  }
-
-  return directives;
-}
-
 function hasExplicitHumanRequest(message: string) {
   return isExplicitHumanHandoffRequest(message);
 }
@@ -230,6 +214,35 @@ function sanitizeCustomerReply(value: string) {
     .replace(/\bRAG\b/gi, "المعرفة المتاحة")
     .replace(/\bconfidence score\b/gi, "درجة التأكد")
     .trim();
+}
+
+function replyAcknowledgesHandoff(value: string) {
+  const text = String(value || "").toLowerCase();
+  return /(سجل|تسجل|تسجيل|تذكره|تذكرة|طلبك|حول|تحويل|الفريق|الدعم|موظف|سيتواصل|هنتواصل|نتواصل|registered|recorded|ticket|support|team|agent|representative|follow up|reach out)/i.test(text);
+}
+
+function buildRuntimeContext(inputData: AiReplyRunContext, ticketId?: string) {
+  const parts: string[] = [];
+
+  if (inputData.businessIntent) {
+    parts.push(`businessIntent=${inputData.businessIntent}`);
+  }
+  if (inputData.reason) {
+    parts.push(`reason=${inputData.reason}`);
+  }
+  if (inputData.ticket?.shouldCreate) {
+    parts.push(`ticketRequired=true`);
+    parts.push(`ticketCategory=${inputData.ticket.category}`);
+    parts.push(`ticketReason=${inputData.ticket.reason}`);
+  }
+  if (inputData.reason === "explicit_human_request" || inputData.ticket?.category === "human_request") {
+    parts.push("handoffRequested=true");
+  }
+  if (ticketId) {
+    parts.push("ticketCreated=true");
+  }
+
+  return parts.length ? parts.join("; ") : "";
 }
 
 
@@ -256,6 +269,9 @@ const loadConversationStep = createStep({
       isActive: true,
     }).lean();
     if (!bot) throw new Error("البوت غير موجود أو غير مفعل.");
+
+    const tenant = await Tenant.findOne({ _id: inputData.tenantId }).lean();
+    if (!tenant) throw new Error("مساحة العمل غير موجودة.");
 
     const setting = await AiSetting.findOne({
       tenantId: inputData.tenantId,
@@ -355,14 +371,16 @@ const loadConversationStep = createStep({
             isEnabled: setting.isEnabled ?? undefined,
           }
         : null,
+      tenantName: tenant.name,
       unifiedPrompt: buildUnifiedSystemPrompt({
-        businessName: bot.name,
+        businessName: tenant.name,
         botName: bot.name || "Chatzi",
         role: setting?.role || "CRM assistant",
         tone: setting?.tone || "professional, warm, marketing-focused",
         responseLength: setting?.responseLength || "short",
         language: setting?.language || "auto",
         customInstructions: setting?.systemPrompt || "",
+        useEmojis: setting?.useEmojis ?? undefined,
       }),
       generated: false,
     };
@@ -381,13 +399,14 @@ const fastReplyStep = createStep({
       botId: inputData.botId,
       message: inputData.message,
       botName: inputData.bot?.name,
-      businessName: inputData.bot?.name,
+      businessName: inputData.tenantName || inputData.bot?.name,
       language: inputData.setting?.language || "auto",
       role: inputData.setting?.role || "assistant",
       tone: inputData.setting?.tone || "friendly",
       responseLength: inputData.setting?.responseLength || "short",
       fallbackMessage: inputData.setting?.fallbackMessage,
-      customInstructions: inputData.unifiedPrompt || inputData.setting?.systemPrompt,
+      customInstructions: inputData.setting?.systemPrompt,
+      useEmojis: inputData.setting?.useEmojis ?? undefined,
     });
 
     if (!fast.handled || !fast.reply) return inputData;
@@ -422,12 +441,13 @@ const moderationStep = createStep({
           tenantId: inputData.tenantId,
           botId: inputData.botId,
           customerMessage: inputData.message,
-          businessName: inputData.bot?.name,
+          businessName: inputData.tenantName || inputData.bot?.name,
           botName: inputData.bot?.name || "Chatzi",
           language: inputData.setting?.language || "auto",
           intent: "moderation",
           reason: moderation.reason || "moderation_blocked",
-          customInstructions: inputData.unifiedPrompt || inputData.setting?.systemPrompt,
+          customInstructions: inputData.setting?.systemPrompt,
+          contextSummary: buildRuntimeContext(inputData),
         }),
         confidence: 100,
         reason: moderation.reason || "moderation_blocked",
@@ -445,8 +465,7 @@ const routeHandoffStep = createStep({
   execute: async ({ inputData }) => {
     if (inputData.action) return inputData;
 
-    // If customer explicitly asks for a human, flag it but let the agent respond naturally.
-    // The agent instructions tell it how to handle this warmly — not a hardcoded reply.
+    // If customer explicitly asks for a human, flag it and let the unified prompt shape the reply.
     if (hasExplicitHumanRequest(inputData.message)) {
       const ticket: AiReplyTicketContext = {
         shouldCreate: true,
@@ -454,7 +473,7 @@ const routeHandoffStep = createStep({
         priority: "medium",
         reason: "explicit_human_request",
       };
-      // Pass to agent with handoff flag — agent will generate a natural, warm handoff message
+      // Pass runtime context forward; no customer-facing handoff copy is hardcoded here.
       return { ...inputData, ticket, reason: "explicit_human_request" };
     }
 
@@ -466,7 +485,7 @@ const routeHandoffStep = createStep({
         priority: ticketIntent.priority as AiReplyTicketContext["priority"],
         reason: ticketIntent.reason,
       };
-      // Pass to agent with ticket metadata — agent generates the reply naturally
+      // For human requests — create ticket and forward
       return { ...inputData, ticket, reason: ticketIntent.reason };
     }
 
@@ -570,26 +589,22 @@ const generateReplyStep = createStep({
     if (inputData.action) return inputData;
     if (!inputData.conversationId) throw new Error("تعذر تحديد المحادثة.");
 
-    const hasKnowledgeContext = Boolean(inputData.knowledgePrompt || inputData.knowledgeEntities?.entities?.length || inputData.knowledge?.results?.length);
+    const runtimeContext = buildRuntimeContext(inputData);
     const instructions = [
-      inputData.unifiedPrompt || buildUnifiedSystemPrompt({
-        businessName: inputData.bot?.name,
+      buildUnifiedSystemPrompt({
+        businessName: inputData.tenantName || inputData.bot?.name,
         botName: inputData.bot?.name || "Chatzi",
         role: inputData.setting?.role,
         tone: inputData.setting?.tone,
         responseLength: inputData.setting?.responseLength,
         language: inputData.setting?.language || "auto",
         customInstructions: inputData.setting?.systemPrompt || DEFAULT_SYSTEM_PROMPT,
+        knowledgeInstructions: inputData.knowledgePrompt,
+        contextSummary: runtimeContext,
+        useEmojis: inputData.setting?.useEmojis ?? undefined,
+        enableTicketMarkers: true,
+        needsLeadInfo: inputData.needsLeadInfo,
       }),
-      ...buildPersonaDirectives(inputData.setting),
-      "If structured Knowledge Entities are present, use them first before chunks.",
-      "For service-list questions, list the available services directly from entities/chunks. Never ask what service the customer means when they ask what services are offered.",
-      "For identity questions, identify yourself as Chatzi/the configured assistant for the current business/workspace. Do not use a generic AI identity.",
-      "Never show a fixed fallback phrase. Generate a natural answer in the customer's language.",
-      hasKnowledgeContext
-        ? "Knowledge context is available. Use it and provide the closest accurate answer within the business scope."
-        : "No confirmed business knowledge is available. Ask one concise natural clarification or offer the closest safe next step without inventing facts.",
-      inputData.knowledgePrompt || "",
     ]
       .filter(Boolean)
       .join("\n\n");
@@ -598,25 +613,21 @@ const generateReplyStep = createStep({
     const attachmentDescription = describeAttachmentsForAi(
       getInputAttachments(inputData.metadata)
     );
-    // Inform the agent about special context if this is a handoff-flagged request
-    const handoffContextNote = inputData.reason === "explicit_human_request"
-      ? "\n\n[INTERNAL NOTE — not visible to customer]: The customer has explicitly asked to speak with a human. Acknowledge their request warmly, confirm you are connecting them with the team, and reassure them someone will be in touch soon. Phrase it naturally based on their language and tone."
-      : inputData.ticket?.shouldCreate && inputData.ticket.category !== "ai_failed"
-      ? `\n\n[INTERNAL NOTE — not visible to customer]: A support ticket will be created for this (${inputData.ticket.reason}). Respond helpfully but also let them know naturally that the team will follow up if needed.`
-      : "";
-
     const userPrompt = attachmentDescription
-      ? `${inputData.message}\n\nمرفقات العميل: ${attachmentDescription}${handoffContextNote}`
-      : `${inputData.message}${handoffContextNote}`;
+      ? `${inputData.message}\n\nمرفقات العميل: ${attachmentDescription}`
+      : inputData.message;
 
     try {
       const resolvedModel = await resolveMastraModelForBot({
         tenantId: inputData.tenantId,
         botId: inputData.botId,
       });
+      const requestContext = new RequestContext();
+      requestContext.set(CHATZI_MASTRA_MODEL_CONTEXT_KEY, resolvedModel.model);
       const temperature = inputData.setting?.temperature ?? 0.6;
       const agent = mastra.getAgentById("customer-support-agent");
       const result = await agent.generate(userPrompt, {
+        requestContext,
         model: resolvedModel.model,
         instructions,
         maxSteps: getMastraMaxToolCalls(),
@@ -652,10 +663,12 @@ const generateReplyStep = createStep({
           reason: "ai_detected_intent",
         };
         replyText = replyText.replace(ticketMatch[0], "").trim();
+        // Signal that we need customer lead info (name + phone) — detected by AI in any language
+        inputData = { ...inputData, needsLeadInfo: true };
       }
 
       const shouldHandoff =
-        inputData.reason === "explicit_human_request" && ticketToCreate?.shouldCreate;
+        inputData.reason === "explicit_human_request";
 
       logger.info("ai.model_reply", {
         mode: "mastra_orchestrator",
@@ -715,14 +728,15 @@ const persistResultStep = createStep({
         tenantId: inputData.tenantId,
         botId: inputData.botId,
         customerMessage: inputData.message,
-        businessName: inputData.bot?.name,
+        businessName: inputData.tenantName || inputData.bot?.name,
         botName: inputData.bot?.name || "Chatzi",
         language: inputData.setting?.language || "auto",
         intent: inputData.businessIntent || inputData.knowledge?.intent,
         reason: validation.reason || inputData.reason || "reply_validation_failed",
         hasKnowledge: Boolean(inputData.knowledgePrompt || inputData.knowledgeEntities?.entities?.length || inputData.knowledge?.results?.length),
-        customInstructions: inputData.unifiedPrompt || inputData.setting?.systemPrompt,
+        customInstructions: inputData.setting?.systemPrompt,
         knowledgeSummary: inputData.knowledgePrompt,
+        contextSummary: buildRuntimeContext(inputData),
       });
       validation = validateCustomerReply(reply);
     }
@@ -738,6 +752,7 @@ const persistResultStep = createStep({
     }
 
     let ticketId: string | undefined;
+    let ticketNumber: number | null | undefined;
     const shouldCreateTicket =
       inputData.ticket?.shouldCreate ||
       action === "handoff" ||
@@ -770,6 +785,17 @@ const persistResultStep = createStep({
         },
       });
       ticketId = ticket?._id?.toString();
+      ticketNumber = ticket?.number ?? undefined;
+    }
+
+    if (ticketId && !replyAcknowledgesHandoff(reply)) {
+      if (action === "handoff") {
+        reply += getSystemMessage("handoff_initiated", inputData.setting?.language);
+        validation = { valid: true };
+      } else if (ticketNumber) {
+        reply += getSystemMessage("ticket_created", inputData.setting?.language, { ticketNumber: ticketNumber.toString() });
+        validation = { valid: true };
+      }
     }
 
     if (action === "handoff") {
@@ -916,4 +942,3 @@ export const aiReplyWorkflow = createWorkflow({
   .then(generateReplyStep)
   .then(persistResultStep)
   .commit();
-
