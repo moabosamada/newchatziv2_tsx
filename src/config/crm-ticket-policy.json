@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "defaultRequiredFields": ["name", "phone", "issueDescription"],
+  "defaultPriority": "medium",
+  "categories": [
+    { "id": "technical_support", "defaultPriority": "high" },
+    { "id": "complaint", "defaultPriority": "high" },
+    { "id": "human_request", "defaultPriority": "medium" },
+    { "id": "booking_request", "defaultPriority": "medium" },
+    { "id": "sales_request", "defaultPriority": "medium" },
+    { "id": "ai_failed", "defaultPriority": "medium" },
+    { "id": "general", "defaultPriority": "medium" }
+  ],
+  "contextSwitchHandling": "pause_ticket_flow_and_answer_current_message",
+  "classifierMode": "ai_structured_json",
+  "customerVisibleTextPolicy": "ai_generated_only"
+}

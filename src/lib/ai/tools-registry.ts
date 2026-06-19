@@ -141,14 +141,14 @@ export const TOOL_EXECUTORS: Record<string, Function> = {
       status: "open",
     });
 
-    return "Data saved successfully as a Task.";
+    return JSON.stringify({ ok: true, event: "task_saved" });
   },
 
   save_lead_data: async (args: any, context: ToolContext) => {
     await connectToDatabase();
     const { name, email, phone, company, interest, notes, score } = args;
 
-    if (!name?.trim()) return "Lead name is required to save lead data.";
+    if (!name?.trim()) return JSON.stringify({ ok: false, event: "lead_missing_required_field", missingFields: ["name"] });
 
     const leadData = {
       name,
@@ -183,17 +183,17 @@ export const TOOL_EXECUTORS: Record<string, Function> = {
       { upsert: true, new: true }
     );
 
-    return `Lead data saved for ${name}.`;
+    return JSON.stringify({ ok: true, event: "lead_saved" });
   },
 
   create_ticket: async (args: any, context: ToolContext) => {
     await connectToDatabase();
     const { title, description, priority = "medium", category = "general" } = args;
 
-    if (!title?.trim() && !description?.trim()) return "Ticket title or description is required.";
+    if (!title?.trim() && !description?.trim()) return JSON.stringify({ ok: false, event: "ticket_tool_missing_input" });
 
     const botId = context.botId || context.conversation?.botId?.toString?.() || "";
-    if (!botId) return "Cannot create ticket: missing botId in tool context.";
+    if (!botId) return JSON.stringify({ ok: false, event: "ticket_tool_missing_bot_id" });
 
     const flow = await processTicketFlow({
       tenantId: context.tenantId,
@@ -210,7 +210,7 @@ export const TOOL_EXECUTORS: Record<string, Function> = {
     });
 
     if (flow.action !== "create_ticket") {
-      return `Ticket flow pending: ${flow.state?.status || "collecting_required_fields"}. Missing fields: ${(flow.missingFields || []).join(",")}.`;
+      return JSON.stringify({ ok: false, event: "ticket_flow_pending", status: flow.state?.status || "collecting_required_fields", missingFields: flow.missingFields || [] });
     }
 
     const fields = flow.collectedFields || {};
@@ -234,7 +234,7 @@ export const TOOL_EXECUTORS: Record<string, Function> = {
       },
     });
 
-    return `Ticket saved (ID: ${ticket?._id}). AI auto-reply remains active.`;
+    return JSON.stringify({ ok: true, event: "ticket_saved", ticketId: ticket?._id?.toString?.() || "" });
   },
 
   update_contact_profile: async (args: any, context: ToolContext) => {

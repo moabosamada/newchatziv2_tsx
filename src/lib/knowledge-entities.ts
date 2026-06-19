@@ -124,28 +124,8 @@ function sanitizeEntity(raw: any) {
   };
 }
 
-function lexicalEntityFallback(text: string) {
-  const normalized = normalizeArabicText(text);
-  const candidates: Array<{ type: KnowledgeEntityType; name: string; keywords: string[] }> = [];
-  const serviceWords = [
-    "تبييض الاسنان", "تبيض الاسنان", "زراعه الاسنان", "تقويم الاسنان", "تنظيف الاسنان", "تنظيف الجير",
-    "حشو الاسنان", "خلع الاسنان", "علاج اللثه", "تركيبات الاسنان", "ابتسامه هوليوود", "كشف الاسنان",
-  ];
-  for (const name of serviceWords) {
-    if (normalized.includes(normalizeArabicText(name))) candidates.push({ type: "service", name, keywords: tokens(name) });
-  }
-  const phone = /(?:\+?\d[\d\s\-()]{7,}\d)/.exec(text)?.[0]?.trim();
-  if (phone) candidates.push({ type: "contact", name: "phone", keywords: [phone] });
-  return candidates.map((item) => ({
-    ...item,
-    description: "",
-    category: "",
-    price: "",
-    availability: "",
-    url: "",
-    aliases: [],
-    confidence: 0.55,
-  }));
+function lexicalEntityFallback(_text: string) {
+  return [] as Array<{ type: KnowledgeEntityType; name: string; keywords: string[]; description: string; category: string; price: string; availability: string; url: string; aliases: string[]; confidence: number }>;
 }
 
 export async function extractAndStoreKnowledgeEntities(input: {

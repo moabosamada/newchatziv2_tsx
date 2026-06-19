@@ -736,26 +736,9 @@ function dedupeKnowledgeResults(results: KnowledgeSearchResult[]) {
   return [...map.values()];
 }
 
-function classifyKnowledgeCategory(text: string, requestedCategory?: string) {
+function classifyKnowledgeCategory(_text: string, requestedCategory?: string) {
   const requested = (requestedCategory || "").trim();
-  if (requested && !/^(أخرى|other|عام|تلقائي|auto|auto[-_ ]?classify)$/i.test(requested)) return requested;
-  const value = normalizeForSearch(text);
-  const checks: Array<[string, RegExp]> = [
-    ["الأسعار والباقات", /(سعر|اسعار|باقه|باقة|اشتراك|pricing|price|plan|subscription)/i],
-    ["العروض والخصومات", /(عرض|خصم|كوبون|discount|offer|coupon|promo)/i],
-    ["الشحن والتوصيل", /(شحن|توصيل|delivery|shipping|مندوب|استلام)/i],
-    ["الدفع والفواتير", /(دفع|فاتوره|فاتورة|invoice|payment|stripe|cash|visa)/i],
-    ["السياسات", /(سياسه|سياسة|استرجاع|استبدال|ضمان|privacy|policy|return|refund|warranty)/i],
-    ["الدعم الفني", /(دعم|عطل|مشكله|مشكلة|خطا|خطأ|support|bug|error|technical)/i],
-    ["الأسئلة الشائعة", /(سؤال|اسئله|أسئلة|faq|q:|س:)/i],
-    ["المنتجات", /(منتج|منتجات|product|catalog|sku|مخزون)/i],
-    ["الخدمات", /(خدمه|خدمة|خدمات|service|booking|حجز)/i],
-    ["المبيعات", /(بيع|مبيعات|عميل محتمل|lead|sales|upsell|cross sell)/i],
-    ["التذاكر والعملاء المحتملين", /(تذكره|تذكرة|بلاغ|ticket|lead|crm)/i],
-    ["إجراءات العمل", /(اجراء|إجراء|خطوه|خطوة|workflow|procedure|process)/i],
-    ["معلومات الشركة", /(عن الشركه|عن الشركة|العنوان|الهاتف|مواعيد|company|about|address|phone)/i],
-  ];
-  return checks.find(([, pattern]) => pattern.test(value))?.[0] || "أخرى";
+  return requested || "أخرى";
 }
 
 async function upsertCategory(tenantId: string, name: string) {
@@ -961,15 +944,7 @@ function extractKeywords(value: string, limit = 32) {
   return [...new Set(tokens)].slice(0, limit);
 }
 
-function inferIntent(question: string) {
-  const normalized = normalizeForSearch(question);
-  if (/سعر|اسعار|pricing|price|plan|خطة/.test(normalized)) return "pricing";
-  if (/شحن|توصيل|shipping|delivery/.test(normalized)) return "shipping";
-  if (/استرجاع|استبدال|refund|return/.test(normalized)) return "returns";
-  if (/ضمان|warranty/.test(normalized)) return "warranty";
-  if (/منتج|product/.test(normalized)) return "product";
-  if (/خدمة|service/.test(normalized)) return "service";
-  if (/دعم|support|مشكلة/.test(normalized)) return "support";
+function inferIntent(_question: string) {
   return "general_question";
 }
 

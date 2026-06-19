@@ -55,9 +55,8 @@ export function buildUnifiedSystemPrompt(input: BuildSystemPromptInput = {}) {
     input.language && input.language !== "auto" ? `Configured language: ${input.language}` : "Language mode: auto-detect from the customer message.",
     input.emojiStyle ? `Emoji style: ${input.emojiStyle}. Use emojis naturally according to this setting without overusing them.` :
       typeof input.useEmojis === "boolean" ? `Emoji preference: ${input.useEmojis ? "Use relevant emojis when they fit the customer's tone." : "Do not use emojis."}` : "",
-    input.enableTicketMarkers ? "CRM automation markers: for confirmed booking intent, append [CREATE_TICKET: booking_request] at the very end of the reply. For confirmed buying/sales intent, append [CREATE_TICKET: sales_request] at the very end. Do not append either marker for general questions." : "",
     input.needsLeadInfo
-      ? "CRM FIELD COLLECTION: The customer has shown a buying, booking, support, complaint, or human-agent intent. Before finalizing any ticket/request, politely collect the missing required fields from runtime context. Required fields are customer name, phone number, and issue/request description unless runtime context says they are already present. Keep the request natural and brief — weave it into the conversation naturally, do not list it robotically."
+      ? "CRM FIELD COLLECTION: Runtime context contains a pending CRM flow and the fields still missing. Ask only for those missing fields, naturally, in the customer language and configured tone. Do not list internal field names and do not claim the ticket exists until runtime context confirms creation."
       : "",
     input.customInstructions ? `Business custom instructions that must be respected unless unsafe:\n${input.customInstructions}` : "",
     input.knowledgeInstructions ? `Knowledge instructions/context:\n${input.knowledgeInstructions}` : "",

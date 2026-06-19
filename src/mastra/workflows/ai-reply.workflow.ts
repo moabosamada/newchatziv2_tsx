@@ -29,7 +29,6 @@ import {
   type MessageAttachment,
 } from "@/lib/attachments";
 import {
-  classifyTicketIntent,
   ensureTicketForConversation,
   type TicketCategory,
   type TicketPriority,
@@ -40,7 +39,6 @@ import {
   processTicketFlow,
   type TicketFlowResult,
 } from "@/lib/crm/ticket-flow-engine";
-import { isExplicitHumanHandoffRequest } from "@/lib/ai/handoff";
 import { detectAndReplyFast } from "@/lib/ai/fast-intent-responder";
 
 const settingSchema = z
@@ -63,6 +61,7 @@ const settingSchema = z
     businessSubcategory: z.string().optional(),
     categoryPromptEn: z.string().optional(),
     customInstructionsEn: z.string().optional(),
+    ticketPolicy: z.unknown().optional(),
     isEnabled: z.boolean().optional(),
   })
   .nullable()
@@ -220,10 +219,6 @@ function withTimeoutSignal() {
   };
 }
 
-function hasExplicitHumanRequest(message: string) {
-  return isExplicitHumanHandoffRequest(message);
-}
-
 function sanitizeCustomerReply(value: string) {
   return String(value || "")
     .replace(/<think>[\s\S]*?<\/think>/gi, "")
@@ -232,11 +227,6 @@ function sanitizeCustomerReply(value: string) {
     .replace(/\bRAG\b/gi, "المعرفة المتاحة")
     .replace(/\bconfidence score\b/gi, "درجة التأكد")
     .trim();
-}
-
-function replyAcknowledgesHandoff(value: string) {
-  const text = String(value || "").toLowerCase();
-  return /(سجل|تسجل|تسجيل|تذكره|تذكرة|طلبك|حول|تحويل|الفريق|الدعم|موظف|سيتواصل|هنتواصل|نتواصل|registered|recorded|ticket|support|team|agent|representative|follow up|reach out)/i.test(text);
 }
 
 function buildRuntimeContext(inputData: AiReplyRunContext, ticketId?: string) {
@@ -399,6 +389,7 @@ const loadConversationStep = createStep({
             businessSubcategory: setting.businessSubcategory || undefined,
             categoryPromptEn: setting.categoryPromptEn || undefined,
             customInstructionsEn: setting.customInstructionsEn || undefined,
+            ticketPolicy: setting.ticketPolicy || undefined,
             isEnabled: setting.isEnabled ?? undefined,
           }
         : null,
@@ -498,33 +489,27 @@ const routeHandoffStep = createStep({
   execute: async ({ inputData }) => {
     if (inputData.action) return inputData;
 
-    const detectedIntent = hasExplicitHumanRequest(inputData.message)
-      ? {
-          shouldCreate: true,
-          category: "human_request" as const,
-          priority: "medium" as const,
-          reason: "explicit_human_request",
-        }
-      : classifyTicketIntent(inputData.message);
-
     const ticketFlow = await processTicketFlow({
       tenantId: inputData.tenantId,
       botId: inputData.botId,
       conversationId: inputData.conversationId || "",
       message: inputData.message,
       conversationMetadata: inputData.conversationMetadata,
-      detectedIntent: detectedIntent.shouldCreate ? detectedIntent : null,
+      ticketPolicy: inputData.setting?.ticketPolicy,
+      languageMode: inputData.setting?.languageMode || inputData.setting?.language || "auto",
+      businessCategory: inputData.setting?.businessCategory,
+      businessSubcategory: inputData.setting?.businessSubcategory,
+      customInstructionsEn: [inputData.setting?.categoryPromptEn, inputData.setting?.customInstructionsEn].filter(Boolean).join("\n\n"),
     });
 
     if (ticketFlow.action === "none") return inputData;
 
-    const flowContext = buildTicketFlowContext(ticketFlow);
     const ticket: AiReplyTicketContext | undefined = ticketFlow.category
       ? {
           shouldCreate: ticketFlow.action === "create_ticket",
           category: ticketFlow.category as AiReplyTicketContext["category"],
           priority: (ticketFlow.priority || "medium") as AiReplyTicketContext["priority"],
-          reason: ticketFlow.reason || detectedIntent.reason,
+          reason: ticketFlow.reason || "crm_ticket_ai_policy_engine",
         }
       : undefined;
 
@@ -532,13 +517,12 @@ const routeHandoffStep = createStep({
       ...inputData,
       ticket,
       ticketFlow,
-      ticketFlowContext: flowContext,
+      ticketFlowContext: buildTicketFlowContext(ticketFlow),
       needsLeadInfo: ticketFlow.action === "ask_missing_fields",
-      reason: ticketFlow.reason || detectedIntent.reason,
+      reason: ticketFlow.reason || "crm_ticket_ai_policy_engine",
     };
   },
 });
-
 const quotaStep = createStep({
   id: "quota-check",
   inputSchema: aiReplyRunContextSchema,
@@ -701,11 +685,6 @@ const generateReplyStep = createStep({
       let replyText = result.text?.trim() || "";
       let ticketToCreate = inputData.ticket;
 
-      const ticketMatch = replyText.match(/\[CREATE_TICKET:\s*(booking_request|sales_request)\]/i);
-      if (ticketMatch) {
-        replyText = replyText.replace(ticketMatch[0], "").trim();
-      }
-
       const shouldHandoff =
         inputData.ticket?.shouldCreate === true && inputData.ticket?.category === "human_request";
 
@@ -847,7 +826,7 @@ const persistResultStep = createStep({
       }
     }
 
-    if (ticketId && !replyAcknowledgesHandoff(reply)) {
+    if (ticketId) {
       const confirmation = await buildSafeCustomerReply({
         tenantId: inputData.tenantId,
         botId: inputData.botId,

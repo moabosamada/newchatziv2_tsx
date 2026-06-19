@@ -40,39 +40,13 @@ type AnalysisResult = {
   modelName?: string;
 };
 
-const intentKeywords: Record<Intent, string[]> = {
-  complaint: ["complaint", "angry", "bad", "broken", "issue", "مشكلة", "شكوى", "سيء", "غاضب", "تعطل"],
-  sales: ["price", "buy", "plan", "demo", "offer", "اشتراك", "عرض", "شراء", "سعر", "باقة"],
-  support: ["help", "how", "error", "login", "setup", "support", "مساعدة", "كيف", "خطأ", "دعم", "تفعيل"],
-  billing: ["invoice", "payment", "refund", "paid", "billing", "فاتورة", "دفع", "استرجاع", "رسوم", "محاسبة"],
-  cancellation: ["cancel", "unsubscribe", "close account", "إلغاء", "الغاء", "أوقف", "حذف الحساب"],
-  upgrade: ["upgrade", "increase", "more users", "ترقية", "زيادة", "خطة أعلى", "مستخدمين أكثر"],
-  general: []
-};
+const intentKeywords: Record<Intent, string[]> = { complaint: [], sales: [], support: [], billing: [], cancellation: [], upgrade: [], general: [] };
 
-const escalationKeywords = [
-  "manager",
-  "supervisor",
-  "refund",
-  "chargeback",
-  "lawyer",
-  "lawsuit",
-  "angry",
-  "furious",
-  "مدير",
-  "مشرف",
-  "استرجاع",
-  "استرداد",
-  "محامي",
-  "قضية",
-  "غاضب",
-  "زعلان",
-  "سيء جداً",
-  "خدمة سيئة"
-];
+const escalationKeywords: string[] = [];
 
-const positiveKeywords = ["thanks", "great", "perfect", "good", "شكراً", "ممتاز", "رائع", "تمام", "جميل"];
-const negativeKeywords = ["bad", "angry", "problem", "late", "wrong", "refund", "سيء", "غاضب", "مشكلة", "متأخر", "خطأ", "استرجاع"];
+
+const positiveKeywords: string[] = [];
+const negativeKeywords: string[] = [];
 
 export async function refreshConversationIntelligence(input: {
   tenantId: string;
@@ -518,39 +492,14 @@ function summarizeFallback(latestText: string, transcript: string, intent: Inten
   return `نية العميل: ${intentLabel(intent)}. آخر رسالة: ${first.slice(0, 160)}`;
 }
 
-function intentLabel(intent: Intent) {
-  const labels: Record<Intent, string> = {
-    complaint: "شكوى",
-    sales: "مبيعات",
-    support: "دعم",
-    billing: "محاسبة",
-    cancellation: "إلغاء",
-    upgrade: "ترقية",
-    general: "عام"
-  };
-  return labels[intent];
-}
-
-function professionalReply(text: string, intent: Intent) {
-  if (intent === "billing") return "أفهم طلبك بخصوص الدفع أو الفاتورة. سأراجع التفاصيل المتاحة الآن، وإذا احتجنا صلاحية مالية سأحوّل الطلب للفريق المختص لضمان معالجة دقيقة.";
-  if (intent === "sales") return "شكراً لتواصلك. يسعدني مساعدتك في اختيار الخيار الأنسب. هل يمكنك مشاركة احتياجك الأساسي وعدد المستخدمين المتوقع؟";
-  if (intent === "complaint") return "أعتذر عن التجربة غير المرضية. سأتعامل مع الموضوع بجدية وأراجع التفاصيل فوراً حتى نصل إلى حل واضح.";
-  return `شكراً لتوضيحك. سأراجع طلبك الآن وأعود لك برد دقيق${text ? " بناءً على التفاصيل التي أرسلتها" : ""}.`;
-}
-
-function shortReply(_text: string, _intent: Intent) {
-  return "";
-}
-
-function friendlyReply(_text: string, _intent: Intent) {
-  return "";
-}
-
+function intentLabel(intent: Intent) { return intent; }
+function professionalReply(_text: string, _intent: Intent) { return ""; }
+function shortReply(_text: string, _intent: Intent) { return ""; }
+function friendlyReply(_text: string, _intent: Intent) { return ""; }
 function tagsFor(intent: Intent, sentiment: Sentiment, needsHuman: boolean) {
   const tags = [intentLabel(intent)];
-  if (sentiment === "negative") tags.push("Urgent");
-  if (intent === "sales") tags.push("New Lead");
-  if (needsHuman) tags.push("Escalated");
+  if (sentiment === "negative") tags.push("urgent");
+  if (needsHuman) tags.push("escalated");
   return tags;
 }
 
@@ -581,41 +530,12 @@ function clampNumber(value: unknown, fallback: number, min = 0, max = 100) {
   return Math.max(min, Math.min(max, Math.round(numeric)));
 }
 
-function actionToTone(action: string) {
-  const tones: Record<string, string> = {
-    formal: "formal and precise",
-    short: "short and direct",
-    friendly: "warm and friendly",
-    professional: "professional and confident",
-    sales: "sales oriented without pressure",
-    support: "technical support oriented with clear next steps"
-  };
-  return tones[action] || tones.professional;
-}
-
-function rewriteInstruction(mode: string) {
-  const modes: Record<string, string> = {
-    improve: "Improve clarity, grammar, and customer empathy.",
-    professional: "Make it more professional and concise.",
-    shorten: "Shorten the draft while preserving all important meaning.",
-    expand: "Expand the draft with helpful context and next steps.",
-    translate: "Translate the draft to Arabic if it is not Arabic; otherwise translate it to English."
-  };
-  return modes[mode] || modes.improve;
-}
-
-function buildFallbackReply(context: string, tone: string) {
-  if (tone.includes("short")) return "وصلت رسالتك، سأراجع التفاصيل وأرد عليك بالتحديث المناسب.";
-  if (tone.includes("sales")) return "يسعدني مساعدتك في اختيار الخيار الأنسب. ما احتياجك الأساسي وعدد المستخدمين المتوقع؟";
-  if (tone.includes("technical")) return "سأساعدك في حل المشكلة. أرسل لي الخطوة التي توقفت عندها وأي رسالة خطأ ظهرت لك.";
-  return context.includes("Refund")
-    ? "أفهم طلبك، سأراجع التفاصيل المالية وأحوّلها للفريق المختص عند الحاجة."
-    : "شكراً لتواصلك. سأراجع التفاصيل الآن وأعود لك برد واضح ودقيق.";
-}
+function actionToTone(action: string) { return action || "professional"; }
+function rewriteInstruction(mode: string) { return mode || "improve"; }
+function buildFallbackReply(_context: string, _tone: string) { return ""; }
 
 function fallbackRewrite(draft: string, mode: string) {
   if (mode === "shorten") return draft.length > 120 ? `${draft.slice(0, 117).trim()}...` : draft;
-  if (mode === "expand") return `${draft}\n\nسأتابع معك حتى نتأكد أن كل شيء واضح وتم حل الطلب بالشكل المناسب.`;
-  if (mode === "translate") return draft;
-  return draft.replace(/\s+/g, " ").trim();
+  return draft;
 }
+

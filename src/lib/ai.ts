@@ -955,45 +955,25 @@ async function inferAutoPersona(input: {
   return scored[0]?.persona || null;
 }
 
-function inferPersonaRoutingReason(message: string) {
-  const text = fingerprint(message);
-  if (/(سعر|اسعار|عرض|اشتراك|باقة|خطة|شراء|اطلب|منتج|منتجات|بيع|مبيعات|demo|price|pricing|plan|buy|purchase|product|offer|quote)/i.test(text)) return "sales";
-  if (/(مشكله|مشكلة|خطا|لا يعمل|الدعم|تذكرة|بلاغ|عطل|bug|error|support|issue|problem|ticket|help)/i.test(text)) return "support";
-  if (/(فاتورة|دفع|مدفوعات|حساب|الغاء|تجديد|billing|invoice|payment|subscription|renew|cancel)/i.test(text)) return "billing";
-  if (/(حجز|موعد|زيارة|احجز|booking|appointment|schedule|reserve)/i.test(text)) return "booking";
+function inferPersonaRoutingReason(_message: string) {
   return "general";
 }
 
-function scorePersonaMatch(persona: any, message: string, intent: string) {
+function scorePersonaMatch(persona: any, message: string, _intent: string) {
   const haystack = fingerprint(`${persona.personaType || ""} ${persona.roleName || ""} ${persona.description || ""} ${persona.systemPrompt || ""}`);
-  const dictionary: Record<string, string[]> = {
-    sales: ["sales", "sale", "مبيعات", "بيع", "منتج", "اسعار", "عروض", "اشتراك", "pricing", "product"],
-    support: ["support", "دعم", "فني", "خدمة العملاء", "مشاكل", "بلاغ", "ticket", "helpdesk"],
-    billing: ["billing", "invoice", "payment", "فواتير", "دفع", "اشتراك", "محاسبة"],
-    booking: ["booking", "appointment", "reception", "حجز", "مواعيد", "استقبال"]
-  };
-  let score = 0;
-  const terms = dictionary[intent] || [];
-  for (const term of terms) if (haystack.includes(fingerprint(term))) score += 8;
   const messageTokens = fingerprint(message).split(" ").filter((token) => token.length > 2);
+  let score = 0;
   for (const token of messageTokens.slice(0, 12)) if (haystack.includes(token)) score += 1;
-  if (intent !== "general" && haystack.includes(intent)) score += 10;
   return score;
 }
 
-function mapPersonaToConversationIntent(persona: any, message: string) {
-  const intent = inferPersonaRoutingReason(message);
-  if (intent === "sales" || intent === "support" || intent === "billing") return intent;
-  const text = fingerprint(`${persona.personaType || ""} ${persona.roleName || ""}`);
-  if (/مبيعات|sales|product|منتج/.test(text)) return "sales";
-  if (/دعم|support|فني/.test(text)) return "support";
-  if (/billing|فاتوره|دفع/.test(text)) return "billing";
+function mapPersonaToConversationIntent(_persona: any, _message: string) {
   return "general";
 }
 
 function summarizeTicketTitle(value: string) {
   const text = value.replace(/\s+/g, " ").trim();
-  return (text ? `متابعة طلب عميل: ${text}` : "متابعة طلب عميل من المحادثة").slice(0, 120);
+  return (text || "Customer request").slice(0, 120);
 }
 
 async function notifyWorkflowCapture(input: { tenantId: string; conversation: any; ticket: any; userMessage: string }) {

@@ -46,66 +46,8 @@ function buildSubject(input: {
   return `${label} - ${input.externalUserId}`;
 }
 
-export function classifyTicketIntent(message: string): TicketIntentClassification {
-  const normalized = message.toLowerCase().replace(/[إأآا]/g, "ا").replace(/[ىي]/g, "ي").replace(/ة/g, "ه");
-
-  if (
-    /(موظف|بشري|انسان|خدمه\s*العملاء|الدعم\s*البشري|\bhuman\b|\bagent\b|representative|real person)/i.test(normalized) ||
-    /(اكلم|كلم|اتكلم|التحدث|اتحدث|تحدث|تواصل|حولني|وصلني|اريد|ابغي|احتاج|ممكن|يمكنني).{0,40}(الدعم|الدعم\s*الفني|فريق\s*الدعم|موظف|مندوب|ممثل)/i.test(normalized)
-  ) {
-    return {
-      shouldCreate: true,
-      category: "human_request",
-      priority: "medium",
-      reason: "explicit_human_request",
-    };
-  }
-
-  // Internal intent detection starts a CRM ticket flow only.
-  // The official ticket is created later by the ticket-flow engine after required fields are collected.
-
-  if (/(اشتري|شراء|عايز اشتري|اريد الشراء|طلب شراء|order|buy|purchase|sales|quote|quotation|price quote)/i.test(normalized)) {
-    return {
-      shouldCreate: true,
-      category: "sales_request",
-      priority: "medium",
-      reason: "sales_request",
-    };
-  }
-
-  if (/(حجز|احجز|موعد|ميعاد|booking|book appointment|appointment|reservation|schedule)/i.test(normalized)) {
-    return {
-      shouldCreate: true,
-      category: "booking_request",
-      priority: "medium",
-      reason: "booking_request",
-    };
-  }
-
-  if (/(شكوى|اشتكي|زعلان|غاضب|سيء|سىء|مش راضي|complaint|angry|bad service)/i.test(normalized)) {
-    return {
-      shouldCreate: true,
-      category: "complaint",
-      priority: "high",
-      reason: "customer_complaint",
-    };
-  }
-
-  if (/(دعم فني|مشكله تقنيه|مشكلة تقنية|لا يعمل|مش شغال|عطل|خطا|خطأ|bug|error|technical support|not working)/i.test(normalized)) {
-    return {
-      shouldCreate: true,
-      category: "technical_support",
-      priority: "high",
-      reason: "technical_support_request",
-    };
-  }
-
-  return {
-    shouldCreate: false,
-    category: "general",
-    priority: "medium",
-    reason: "no_ticket_trigger",
-  };
+export function classifyTicketIntent(_message: string): TicketIntentClassification {
+  return { shouldCreate: false, category: "general", priority: "medium", reason: "ticket_intent_requires_ai_policy_engine" };
 }
 
 export async function ensureTicketForConversation(input: EnsureTicketInput) {
