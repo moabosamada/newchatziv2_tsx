@@ -1,0 +1,526 @@
+Deep Enterprise Architecture Audit
+
+You are acting as a Principal Software Architect, Staff Backend Engineer, Staff Frontend Engineer, Database Architect, SRE, Security Engineer, and SaaS Scalability Consultant.
+
+Your task is to perform a FULL DEEP AUDIT of the ENTIRE codebase using the ACTUAL SOURCE CODE ONLY.
+
+CRITICAL RULES:
+
+* Do NOT give generic advice.
+* Do NOT give theoretical recommendations unless tied to actual code.
+* Every finding MUST reference actual files, functions, classes, models, queries, workers, APIs, hooks, components, schemas, or configurations found in the repository.
+* If something is not found in the code, explicitly say: “Not found in codebase.”
+* Assume this project aims to become a production-grade SaaS comparable to Chatwoot, Intercom, Zendesk, Freshdesk, and HubSpot Service Hub.
+* Think at scale:
+    * 100 tenants
+    * 1,000 tenants
+    * 10,000 tenants
+    * millions of messages
+    * thousands of concurrent users
+
+I want an extremely detailed report.
+
+⸻
+
+PART 1 — EXECUTIVE SUMMARY
+
+Provide:
+
+* Overall architecture score (/10)
+* Scalability score (/10)
+* Security score (/10)
+* Availability score (/10)
+* Maintainability score (/10)
+* Frontend architecture score (/10)
+* Backend architecture score (/10)
+* Database design score (/10)
+* Realtime architecture score (/10)
+* Billing architecture score (/10)
+* AI architecture score (/10)
+
+Also provide:
+
+* Top 20 risks
+* Top 20 strengths
+* Top 20 priorities before production
+
+⸻
+
+PART 2 — PROJECT STRUCTURE REVIEW
+
+Analyze:
+
+* folder structure
+* module organization
+* domain boundaries
+* separation of concerns
+* dependency direction
+* circular dependencies
+* code ownership boundaries
+
+Determine whether architecture follows:
+
+* Layered Architecture
+* Domain Driven Design
+* Clean Architecture
+* Modular Monolith
+* Hexagonal Architecture
+* Event Driven Architecture
+
+Show evidence from actual code.
+
+Identify:
+
+* God files
+* God services
+* God components
+* Tight coupling
+* Hidden coupling
+
+List all files larger than:
+
+* 500 lines
+* 1000 lines
+* 2000 lines
+
+Explain impact.
+
+⸻
+
+PART 3 — DATABASE AUDIT
+
+Analyze all:
+
+* MongoDB collections
+* models
+* schemas
+* indexes
+* compound indexes
+* unique indexes
+
+For every collection:
+
+Provide:
+
+* purpose
+* estimated growth pattern
+* scalability concerns
+* missing indexes
+* over-indexing
+* under-indexing
+
+Find:
+
+* collection scans
+* N+1 patterns
+* expensive queries
+* aggregation bottlenecks
+
+Determine whether the database can support:
+
+* 1 million messages
+* 10 million messages
+* 100 million messages
+
+without degradation.
+
+Show actual evidence.
+
+⸻
+
+PART 4 — QUERY AUDIT
+
+Inspect all:
+
+* find
+* findOne
+* aggregate
+* populate
+* update
+* updateMany
+* bulkWrite
+* delete operations
+
+For every critical query:
+
+Evaluate:
+
+* index coverage
+* sort efficiency
+* projection usage
+* lean usage
+* pagination strategy
+
+Determine:
+
+* which queries will become slow first
+* which queries will break under load
+* which queries should move to cache
+
+Find:
+
+* repeated queries
+* duplicated reads
+* unnecessary writes
+
+⸻
+
+PART 5 — MESSAGING SYSTEM AUDIT
+
+Analyze complete inbound and outbound flow.
+
+Trace:
+
+Message received
+→ Processing
+→ Routing
+→ AI
+→ Persistence
+→ Realtime
+→ Delivery
+
+Map all workers.
+
+Determine:
+
+* message throughput limits
+* bottlenecks
+* queue architecture quality
+* retry strategy
+* idempotency handling
+* dead letter handling
+
+Evaluate readiness for:
+
+* 100 msg/min
+* 1,000 msg/min
+* 10,000 msg/min
+* 100,000 msg/min
+
+Compare architecture against Chatwoot.
+
+Provide exact gaps.
+
+⸻
+
+PART 6 — CONVERSATION LOADING AUDIT
+
+Analyze inbox loading.
+
+Determine:
+
+* how conversations are fetched
+* how messages are fetched
+* how sidebars are loaded
+* how analytics are loaded
+
+Check:
+
+* eager loading
+* lazy loading
+* cursor pagination
+* infinite scroll
+* virtualized rendering
+
+Compare with Chatwoot approach.
+
+Identify:
+
+* overfetching
+* unnecessary API calls
+* large payloads
+
+Determine maximum practical conversation count before UX degradation.
+
+⸻
+
+PART 7 — REALTIME ARCHITECTURE AUDIT
+
+Inspect:
+
+* sockets
+* websocket usage
+* pub/sub
+* event systems
+
+Determine:
+
+* single server behavior
+* multi-server behavior
+
+Check:
+
+* Redis adapter
+* Redis PubSub
+* horizontal scaling readiness
+
+Explain:
+
+What happens if traffic is multiplied by 100.
+
+⸻
+
+PART 8 — BILLING & SUBSCRIPTION AUDIT
+
+Analyze:
+
+* plans
+* subscriptions
+* quotas
+* usage tracking
+* metering
+* invoices
+* payment providers
+
+Determine:
+
+* accuracy of usage tracking
+* race conditions
+* double counting risks
+* quota bypass risks
+
+Check:
+
+* message counting
+* AI token counting
+* billing updates
+
+Would billing survive:
+
+* 1 million usage events/day?
+
+Show exact bottlenecks.
+
+⸻
+
+PART 9 — AI & MASTRA AUDIT
+
+Analyze all:
+
+* Mastra agents
+* workflows
+* tools
+* memory
+* prompts
+* orchestration
+
+Determine:
+
+* whether Mastra is used correctly
+* whether business logic leaks into agents
+* workflow complexity
+* observability quality
+
+Compare with best practices.
+
+Explain:
+
+What should remain inside Mastra.
+What should move outside Mastra.
+
+⸻
+
+PART 10 — SECURITY AUDIT
+
+Inspect:
+
+* authentication
+* authorization
+* RBAC
+* tenant isolation
+* secrets
+* API security
+* webhook validation
+
+Check:
+
+* injection risks
+* privilege escalation
+* broken access control
+* tenant escape possibilities
+
+Evaluate:
+
+OWASP Top 10 readiness.
+
+Provide severity:
+
+Critical
+High
+Medium
+Low
+
+with exact code references.
+
+⸻
+
+PART 11 — MULTI-TENANCY AUDIT
+
+Determine:
+
+* tenant isolation strategy
+* tenant filtering consistency
+* missing tenant filters
+* cross-tenant risks
+
+Verify every major entity.
+
+Identify any location where tenant leakage is possible.
+
+⸻
+
+PART 12 — FRONTEND AUDIT
+
+Analyze:
+
+* Next.js architecture
+* component structure
+* client/server boundaries
+* hydration risks
+* bundle size risks
+
+Check:
+
+* code splitting
+* lazy loading
+* dynamic imports
+* React Query/SWR usage
+* caching
+
+Identify:
+
+* components causing large bundles
+* unnecessary rerenders
+* state management issues
+
+Evaluate readiness for:
+
+10k+ conversations.
+
+⸻
+
+PART 13 — PERFORMANCE AUDIT
+
+Identify:
+
+* hottest code paths
+* slowest endpoints
+* slowest database operations
+
+Estimate:
+
+* P50 latency
+* P95 latency
+* P99 latency
+
+based on actual implementation.
+
+Highlight:
+
+* CPU bottlenecks
+* memory bottlenecks
+* network bottlenecks
+
+⸻
+
+PART 14 — AVAILABILITY & RESILIENCE
+
+Inspect:
+
+* retry mechanisms
+* queue durability
+* circuit breakers
+* fallback handling
+* graceful degradation
+
+Determine:
+
+What happens if:
+
+* OpenAI fails
+* Redis fails
+* MongoDB slows down
+* Payment provider fails
+* WhatsApp provider fails
+
+Identify missing protections.
+
+⸻
+
+PART 15 — MAINTAINABILITY
+
+Analyze:
+
+* code duplication
+* complexity
+* naming quality
+* consistency
+
+Find:
+
+* largest files
+* most coupled modules
+* hardest modules to maintain
+
+Estimate technical debt level.
+
+⸻
+
+PART 16 — CHATWOOT GAP ANALYSIS
+
+Compare current implementation against Chatwoot-level architecture.
+
+Create table:
+
+Current State
+Chatwoot State
+Gap
+Priority
+Estimated Impact
+
+Cover:
+
+* messaging
+* realtime
+* inbox loading
+* pagination
+* caching
+* queues
+* scaling
+* analytics
+* billing
+
+⸻
+
+PART 17 — FINAL PRODUCTION READINESS
+
+Answer:
+
+Can this codebase safely support:
+
+* 100 companies
+* 1,000 companies
+* 10,000 companies
+
+Can it safely support:
+
+* 1 million messages/month
+* 10 million messages/month
+* 100 million messages/month
+
+Can it become a serious SaaS competitor?
+
+Provide:
+
+* Production Readiness Score
+* Enterprise Readiness Score
+
+Finally produce:
+
+TOP 50 ACTION ITEMS
+
+sorted by:
+
+Impact / Effort Ratio
+
+with exact files that should be modified.

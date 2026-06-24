@@ -33,7 +33,7 @@ args = "npm run dev -- --no-turbopack"
 waitForPort = 3000
 
 [agent]
-stack = "PNPM_WORKSPACE"
+stack = "BEST_EFFORT_FALLBACK"
 expertMode = true
 
 [postMerge]
